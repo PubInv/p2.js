@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Island solver demo - p2.js physics engine</title>
+    <script src="../build/p2.js"></script>
+    <script src="../build/p2.renderer.js"></script>
+    <link href="css/demo.css" rel="stylesheet"/>
+    <meta name="description" content="How to use the IslandSolver for improved performance.">
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
+</head>
+<body>
+    <script>
+
+var interval;
+
+var N = 20,  // Number of circles in each rope
+    r = 0.1; // Circle radius
+
+// Create demo application
+var app = new p2.WebGLRenderer({
+
+    setup: function(){
+
+        // Create a world with island splitting enabled.
+        // The island splitting will cut the scene into independent islands and treat them as separate simulations. This can improve performance.
+        var world = new p2.World({
+            gravity : [0,-0.1],
+        });
+
+//	world.defaultContactMaterial.friction = 0;
+	
+        this.setWorld(world);
+
+	// Create the track
+	function add_capstan(x,y) {
+	    var capstan_r = 0.3;
+	  var c0 = new p2.Body({
+                mass: 0,
+              position: [ x , y],
+	      
+            });
+            c0.addShape(new p2.Circle({ radius : capstan_r}));
+	    world.addBody(c0);
+	}
+	add_capstan(-0.6,0.4);
+	add_capstan(-0.2,0.6);
+	add_capstan(0.2,0.6);
+	add_capstan(0.6,0.4);	
+	
+	
+
+        world.solver.tolerance = 0.1;
+        world.solver.iterations = N;
+
+        // Create circle rope
+        var lastBody;
+	var bodies = [];
+	var ring_radius = 2.0;
+        for(var i=N-1; i>=0; i--){
+	    var theta = i * 2 * Math.PI / N;
+	    var x = ring_radius*Math.sin(theta);
+	    var y = ring_radius*Math.cos(theta);
+            var p = new p2.Body({
+                mass:  1,
+                position:  [ x , y],
+            });
+            p.addShape(new p2.Circle({ radius: r }));
+	    bodies[i] = p;
+            world.addBody(p);
+            if(lastBody){
+                // Connect the current body to the previous one
+      //          var dist = Math.abs(p.position[1]-lastBody.position[1]);
+		var dist = p2.vec2.distance(p.position,lastBody.position);
+                var constraint = new p2.DistanceConstraint(p,lastBody, {
+//                    distance: dist
+                });
+              world.addConstraint(constraint);
+            } else {
+//                p.velocity[0] = 1*i;
+            }
+            lastBody = p;
+	}
+
+//	var dist = Math.abs(bodies[0].position[1]-bodies[N-1].position[1]);
+	var dist = p2.vec2.distance(bodies[0].position,bodies[N-1].position);
+        var constraint = new p2.DistanceConstraint(bodies[0],bodies[N-1], {
+            distance: dist
+        });
+	world.addConstraint(constraint);
+
+	var speed_factor = 50.0;
+	var scale_factor = 1.3;
+
+	function each_follow_neighbor(speed_factor) {
+	    for(var i=N-1; i>=0; i--){
+		var v = p2.vec2.create();
+		p2.vec2.subtract(v,bodies[i].position,bodies[(i+1) % N].position);
+		var nv = p2.vec2.create();
+		p2.vec2.scale(nv,v,speed_factor);
+		p2.vec2.add(bodies[i].velocity,bodies[i].velocity ,nv);
+//		bodies[i].velocity = nv;
+	    }
+	}
+
+	function scale_each(speed_factor) {
+	    for(var i=N-1; i>=0; i--){
+		p2.vec2.scale(bodies[i].velocity,bodies[i].velocity,speed_factor);
+	    }
+	}
+	each_follow_neighbor(speed_factor);
+	
+            var particle = new p2.Body({
+                mass: 1,
+                position: [ x , y],
+		velocity: [0,0]
+            });
+            particle.addShape(new p2.Circle({ radius : r}));
+//	    bodies[N+1] = particle;
+//            world.addBody(particle);
+
+	
+
+
+        // Print the number of independent islands to console repeatedly.
+        // This will output 10 if the ropes don't touch.
+	var cnt = 0;
+        interval = setInterval(function(){
+      //      var numIslands = world.islandManager.islands.length;
+            console.log("Hello World!"+cnt++);
+	//    	scale_each(scale_factor);
+	        },1000);
+
+	            // Create ground
+            var planeShape = new p2.Plane();
+            var plane = new p2.Body({
+                position : [0,-5],
+            });
+            plane.addShape(planeShape);
+            world.addBody(plane);
+
+    },
+
+    teardown: function(){
+        clearInterval(interval);
+    }
+});
+
+    </script>
+</body>
+</html>
