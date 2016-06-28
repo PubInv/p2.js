@@ -15,28 +15,22 @@
 var R = 0.7,
 L = R * 3 / 2;
 
-// Create demo application
-var app = new p2.WebGLRenderer(function(){
+ var buttons = {
+        space : false,
+        left :  false,
+        right : false,
+ }
+var arm2Body;
+var armBody;
+var secondArmBody;
+var dummyBody;
+var world;
 
-    var world = new p2.World({
-        gravity : [0,-1]
-    });
-
-    this.setWorld(world);
-
-    world.solver.iterations = 30;
-    world.solver.tolerance = 0.01;
-
-    // Create static dummy body that we can constrain other bodies to
-    var dummyBody = new p2.Body({
-        mass: 0,
-    });
-    world.addBody(dummyBody);
-
+    function init_double_pendulum() 
     {
     // Create arm
     var armShape =  new p2.Box({ width: L, height: 0.1*L });
-    var armBody = new p2.Body({
+	armBody = new p2.Body({
         mass:1,
 	position: [L*(5/2),0]
     });
@@ -54,7 +48,7 @@ var app = new p2.WebGLRenderer(function(){
 
     // SecondArm
     var secondArmShape = new p2.Box({ width: L, height: 0.1*L });
-    var secondArmBody = new p2.Body({
+    secondArmBody = new p2.Body({
         mass: 1,
 	position: [L*3,-L/2],
 	angle: Math.PI/2
@@ -68,12 +62,16 @@ var app = new p2.WebGLRenderer(function(){
         localPivotB: [L/2,0],
         collideConnected: false
     });
-   world.addConstraint(c3);
-}
+	world.addConstraint(c3);
+
+	reset_double_pendulum();
+    }
+
+     function init_single_pendulum()
     {
         // Create arm
         var arm2Shape =  new p2.Box({ width: L*2, height: 0.1*L });
-        var arm2Body = new p2.Body({
+        arm2Body = new p2.Body({
             mass:1,
 	    position: [-(L*3),0]
         });
@@ -89,6 +87,41 @@ var app = new p2.WebGLRenderer(function(){
 	world.addConstraint(c);
     }
 
+function reset_double_pendulum()
+{
+    armBody.position= [L*(5/2),0];
+    armBody.angle = 0;
+    secondArmBody.position = [L*3,-L/2];
+    secondArmBody.angle = 0;
+}
+
+function reset_single_pendulum()
+{
+    arm2Body.position =  [-(L*3),0];
+    arm2Body.angle = 0;
+}
+
+// Create demo application
+var app = new p2.WebGLRenderer(function(){
+
+    world = new p2.World({
+        gravity : [0,-1]
+    });
+
+    this.setWorld(world);
+
+    world.solver.iterations = 30;
+    world.solver.tolerance = 0.01;
+
+    // Create static dummy body that we can constrain other bodies to
+    dummyBody = new p2.Body({
+        mass: 0,
+    });
+    world.addBody(dummyBody);
+
+
+    init_double_pendulum();
+    init_single_pendulum();
     var line = new p2.Line(L*4);
     var lbody = new p2.Body({
         position : [0,0],
@@ -105,18 +138,41 @@ var app = new p2.WebGLRenderer(function(){
     plane.addShape(planeShape);
     world.addBody(plane);
 
-
-                // Create boxes
-            box = new p2.Body({
-                position:[3,2],
-                mass : 1,
-                angularVelocity : -0.2
-            });
-            box.addShape(new p2.Box({ width: 1/2, height: 1/2 }), [L/2,0], 0);
-            box.addShape(new p2.Box({ width: 1/2, height: 1/2 }), [-L/2,0], 0);
-            world.addBody(box);
-
 });
+
+ window.onkeydown = function(event){
+        switch(event.keyCode){
+          case 38: // up
+          case 32: // space
+            if(!buttons.space){
+		reset_single_pendulum();
+		reset_double_pendulum();
+              buttons.space = true;
+            }
+            break;
+          case 39: // right
+            buttons.right = true;
+            break;
+          case 37: // left
+            buttons.left = true;
+            break;
+        }
+      }
+
+      window.onkeyup = function(event){
+        switch(event.keyCode){
+          case 38: // up
+          case 32: // space
+            buttons.space = false;
+            break;
+          case 39: // right
+            buttons.right = false;
+            break;
+          case 37: // left
+            buttons.left = false;
+            break;
+        }
+      }
 
     </script>
 </body>
