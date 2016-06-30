@@ -39,7 +39,6 @@ var R = 0.7,
 var L1 = L/2;
 var L2 = L/3;
 
-
 var origin = [0,0];
 var SL = L*2;
 var L1 = L; // First arm
@@ -255,8 +254,6 @@ function init_double_pendulum()
         collideConnected: false
     });
     world.addConstraint(c3);
-
-    reset_double_pendulum();
 }
 
 function init_single_pendulum()
@@ -271,15 +268,17 @@ function init_single_pendulum()
     sarmShape.collisionGroup = SINGLE;        
     sarmBody = new p2.Body({
         mass:1,
-	position: [SL/2,0],
+	position: single_arm_pos,
     });
     sarmBody.addShape(sarmShape);
     sarmBody.color =  "0x0000ff";
     sarmBody.name = "sarmBody";
+    
+    sarmBody.angle = initial_angle;
+    
     world.addBody(sarmBody);
 
     bodies[sarmBody.name] = sarmBody; 
-
     
     // Constrain it to the world
     var c = new p2.RevoluteConstraint(sarmBody, dummyBody1, {
@@ -291,16 +290,21 @@ function init_single_pendulum()
 
 function reset_double_pendulum()
 {
+    world.removeBody(armBody);
+    world.removeBody(secondArmBody);    
+    world.removeBody(dummyBody2);    
+    init_double_pendulum();
+
     var random = Math.random() * 0.4;
-    armBody.position= [L*(5/2),0];
+    
     armBody.angle = 0;
     armBody.velocity = [0,0];
     armBody.angularVelocity = initAngVel;
     
-    secondArmBody.position = [L*3.5,0];
     secondArmBody.angle = 0+random;
     secondArmBody.velocity = [0,0];
     secondArmBody.angularVelocity = -initAngVel;
+    
     secondArmBody.color = random_color();
 }
 
