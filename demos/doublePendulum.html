@@ -41,10 +41,13 @@ var L2 = L/3;
 
 var origin = [0,0];
 var SL = L*2;
-var L1 = L; // First arm
-var L2 = L*2.5/3; // Second arm
+var TL = 1.0;
+var r1 = 5;
+var r2 = 3;
+var L1 = SL*TL*r1/(r1+r2); // First arm
+var L2 = SL*TL*r2/(r1+r2); // Second arm
 
-var initial_angle_deg = 30, // raise angle, ccw from x axis, in degrees.
+var initial_angle_deg = 60, // raise angle, ccw from x axis, in degrees.
     initial_angle = (initial_angle_deg/360) * 2.0 * Math.PI;
 
 var single_arm_pos = [origin[0] + Math.cos(initial_angle)*SL/2 , origin[1] + Math.sin(initial_angle)*SL/2 ];
@@ -165,7 +168,7 @@ function drawBodies(graphics,bs,gs) {
 	    graphics.beginFill(b.color);
 	    var theta = normalizeAngle(b.angle);
 	    theta = normalizeAngle(theta);
-	    var len = L/2;
+	    var len = L2/2;
 	    var pos = [b.position[0]+len*Math.cos(theta),b.position[1]+len*Math.sin(theta)];
 	    graphics.drawRect(pos[0], pos[1], 0.03, 0.03);	    
 	}
@@ -204,16 +207,19 @@ function init_double_pendulum()
     });
     world.addBody(dummyBody2);
     
-    var armShape =  new p2.Box({ width: L, height: 0.1*L });
+    var armShape =  new p2.Box({ width: L1, height: 0.1*L });
     armShape.collisionGroup = DOUBLE;            
     armBody = new p2.Body({
         mass:1,
-	position: [L*(5/2),0],
+	position: [L1/2,0],
     });
-    armBody.addShape(armShape,[L/2,0]);
+    armBody.addShape(armShape,d1_arm_pos,initial_angle_deg);
+    
     armBody.velocity = [0,0];
-    armBody.angularVelocity = initAngVel;    
-    armBody.angle = 0;
+    
+    armBody.angularVelocity = initAngVel;
+    
+
     armBody.name = "armBody";
     world.addBody(armBody);
     armBody.color =  "0xffff00";
@@ -222,24 +228,25 @@ function init_double_pendulum()
 
     // Constrain it to the world
     var c = new p2.RevoluteConstraint(armBody, dummyBody2, {
-        worldPivot: [L*2, 0],
+        worldPivot: origin,
         collideConnected: false
     });
 
     world.addConstraint(c);
 
     // SecondArm
-    var secondArmShape = new p2.Box({ width: L, height: 0.1*L });
+    var secondArmShape = new p2.Box({ width: L2, height: 0.1*L });
     armShape.collisionGroup = DOUBLE;            
     secondArmBody = new p2.Body({
         mass: 1,
-	position: [L*3.5,0],
+	position: d2_arm_pos,
 	angle: 0,
     });
-    secondArmBody.angle = 0;
+
     secondArmBody.velocity = [0,0];
     secondArmBody.angularVelocity = -initAngVel;    
-    
+
+
     secondArmBody.addShape(secondArmShape);
     secondArmBody.name = "secondArmBody";
     secondArmBody.color = "0xf00f00";
@@ -248,12 +255,19 @@ function init_double_pendulum()
     bodies[secondArmBody.name] = secondArmBody;    
 
     // Connect secondArm to arm
+
     var c3 = new p2.RevoluteConstraint( armBody,secondArmBody, {
-        localPivotA: [L/2,0],
-        localPivotB: [-L/2,0],
+        localPivotA:
+	    [L1/2 ,
+	     0],
+	localPivotB:
+	[-L2/2,0],
         collideConnected: false
     });
     world.addConstraint(c3);
+    
+    armBody.angle = initial_angle;
+    secondArmBody.angle = initial_angle;    
 }
 
 function init_single_pendulum()
@@ -286,6 +300,16 @@ function init_single_pendulum()
         collideConnected: false
     });
     world.addConstraint(c);
+
+    armBody.angle = initial_angle;
+    armBody.velocity = [0,0];
+    armBody.angularVelocity = 0;
+    
+    secondArmBody.angle = initial_angle;
+    secondArmBody.velocity = [0,0];
+    secondArmBody.angularVelocity = 0;
+    
+    secondArmBody.color = random_color();
 }
 
 function reset_double_pendulum()
@@ -295,15 +319,15 @@ function reset_double_pendulum()
     world.removeBody(dummyBody2);    
     init_double_pendulum();
 
-    var random = Math.random() * 0.4;
-    
-    armBody.angle = 0;
+    var random_degree = Math.random() * 2.0;
+    var random_rads = (random_degree / 360) * 2.0 * Math.PI;
+    armBody.angle = initial_angle+random_rads;
     armBody.velocity = [0,0];
-    armBody.angularVelocity = initAngVel;
+    armBody.angularVelocity = 0;
     
-    secondArmBody.angle = 0+random;
+    secondArmBody.angle = initial_angle+random_rads;
     secondArmBody.velocity = [0,0];
-    secondArmBody.angularVelocity = -initAngVel;
+    secondArmBody.angularVelocity = 0;
     
     secondArmBody.color = random_color();
 }
