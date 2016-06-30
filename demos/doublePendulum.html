@@ -30,8 +30,8 @@ This stuff is harder:
 
 */ 
     var w, h, canvas, ctx, circleBody;
-var bodies = [];
-var bgraphs = [];
+var bodies = {};
+var bgraphs = {};
 
 var renderer, stage, container, graphics, zoom,boxShape, boxBody, planeBody, planeShape;
 var R = 0.7,
@@ -39,12 +39,31 @@ var R = 0.7,
 var L1 = L/2;
 var L2 = L/3;
 
+
+var origin = [0,0];
+var SL = L*2;
+var L1 = L; // First arm
+var L2 = L*2.5/3; // Second arm
+
+var initial_angle_deg = 30, // raise angle, ccw from x axis, in degrees.
+    initial_angle = (initial_angle_deg/360) * 2.0 * Math.PI;
+
+var single_arm_pos = [origin[0] + Math.cos(initial_angle)*SL/2 , origin[1] + Math.sin(initial_angle)*SL/2 ];
+var d1_arm_pos = [origin[0] + Math.cos(initial_angle)*L1/2 , origin[1] + Math.sin(initial_angle)*L1/2 ];
+var d2_arm_pos = [d1_arm_pos[0] +  Math.cos(initial_angle)*(L1+L2)/2,
+		  d1_arm_pos[1] +  Math.sin(initial_angle)*(L1+L2)/2];
+
+ var PLAYER = Math.pow(2,0),
+                        SINGLE =  Math.pow(2,1),
+                        DOUBLE = Math.pow(2,2)
+
 var buttons = {
     space : false,
     left :  false,
     right : false,
 }
-var arm2Body;
+var sarmBody;
+
 var armBody;
 var secondArmBody;
 
@@ -73,23 +92,6 @@ function init_world() {
 
     init_double_pendulum();
     init_single_pendulum();
-    var line = new p2.Line(L*4);
-    var lbody = new p2.Body({
-        position : [0,0],
-    });
-    lbody.addShape(line);
-    world.addBody(lbody);
-    lbody.color = "0xfff000";
-    bodies.push(lbody);
-    
-    // Create ground
-    var planeShape = new p2.Plane();
-    var plane = new p2.Body({
-        position : [0,-5],
-    });
-    plane.addShape(planeShape);
-    world.addBody(plane);
-    bodies.push(plane);
 
 }
 
@@ -129,16 +131,18 @@ function init(){
 }
 
 function add_bodies(container,bodies,graphics) {
-    bodies.forEach((b) => {
+    for (var key in bodies) {
+	var b = bodies[key];
         // Draw the box.
         var g = new PIXI.Graphics();
-	bgraphs.push(g);
+	bgraphs[key] = g;
 	g.beginFill(b.color);
 	var w = b.shapes[0].width;
 	var h = b.shapes[0].height;
 	g.drawRect(-w/2, -h/2, w, h);
 	container.addChild(g);
-    });
+    }
+
 }
 
 function normalizeAngle(angle){
@@ -147,11 +151,12 @@ function normalizeAngle(angle){
                             angle += (2*Math.PI);
                         }
                         return angle;
-                    }
+}
+
 function drawBodies(graphics,bs,gs) {
-    for(var i = 0; i < bs.length; i++) {
-	var g = gs[i];
-	var b = bs[i];
+    for (var key in bodies) {
+	var b = bodies[key];
+	var g = gs[key];
 	// Transfer positions of the physics objects to Pixi.js
 	g.position.x = b.position[0];
 	g.position.y = b.position[1];
@@ -184,35 +189,6 @@ function animate(t){
     renderer.render(stage);
 }
 
-// // Animation loop
-// function animate(t){
-//     t = t || 0;
-//     requestAnimationFrame(animate);
-
-//     circleBody.velocity[0] = 2*Math.cos(1 * t / 1000 + 3/2*Math.PI);
-//     circleBody.velocity[1] = 2*Math.sin(1 * t / 1000 + 3/2*Math.PI);
-
-//     // Compute time since last time we called the .step() method
-//     var timeSinceLastCall = time()-lastCallTime;
-//     lastCallTime = time();
-
-//     // Fixed time step to use for physics. We use a huge timestep of 0.5 to see what's going on.
-//     // NOTE: For most games, fixedTimeStep=1/60 is a good choice.
-//     var fixedTimeStep=0.5; // seconds
-
-//     // Max number of fixed physics timesteps to do in one .step(). We choose a large number to see what is going on.
-//     // NOTE: for most games, maxSubSteps=3 is probably a good choice.
-//     var maxSubSteps=10;
-
-//     // Now step the world.
-//     // This will do integration at a fixed time step, but compute interpolated positions
-//     // which are stored in body.interpolatedPosition.
-//     world.step(fixedTimeStep,timeSinceLastCall,maxSubSteps);
-
-//     // Render both interpolated and fixed-step positions
-//     render(ctx,circleBody);
-// }
-
 // Get current time, in seconds.
 function time(){
     return new Date().getTime() / 1000;
@@ -230,6 +206,7 @@ function init_double_pendulum()
     world.addBody(dummyBody2);
     
     var armShape =  new p2.Box({ width: L, height: 0.1*L });
+    armShape.collisionGroup = DOUBLE;            
     armBody = new p2.Body({
         mass:1,
 	position: [L*(5/2),0],
@@ -237,11 +214,12 @@ function init_double_pendulum()
     armBody.addShape(armShape,[L/2,0]);
     armBody.velocity = [0,0];
     armBody.angularVelocity = initAngVel;    
-    armBody.angle = 0;    
+    armBody.angle = 0;
+    armBody.name = "armBody";
     world.addBody(armBody);
     armBody.color =  "0xffff00";
 
-    bodies.push(armBody);
+    bodies[armBody.name] = armBody;
 
     // Constrain it to the world
     var c = new p2.RevoluteConstraint(armBody, dummyBody2, {
@@ -253,6 +231,7 @@ function init_double_pendulum()
 
     // SecondArm
     var secondArmShape = new p2.Box({ width: L, height: 0.1*L });
+    armShape.collisionGroup = DOUBLE;            
     secondArmBody = new p2.Body({
         mass: 1,
 	position: [L*3.5,0],
@@ -266,7 +245,8 @@ function init_double_pendulum()
     secondArmBody.name = "secondArmBody";
     secondArmBody.color = "0xf00f00";
     world.addBody(secondArmBody);
-    bodies.push(secondArmBody);
+
+    bodies[secondArmBody.name] = secondArmBody;    
 
     // Connect secondArm to arm
     var c3 = new p2.RevoluteConstraint( armBody,secondArmBody, {
@@ -287,19 +267,23 @@ function init_single_pendulum()
     world.addBody(dummyBody1);
     
     // Create arm
-    var arm2Shape =  new p2.Box({ width: L*2, height: 0.1*L });
-    arm2Body = new p2.Body({
+    var sarmShape =  new p2.Box({ width: SL, height: 0.1*L });
+    sarmShape.collisionGroup = SINGLE;        
+    sarmBody = new p2.Body({
         mass:1,
-	position: [-(L*3),0],
+	position: [SL/2,0],
     });
-    arm2Body.addShape(arm2Shape);
-    world.addBody(arm2Body);
-    bodies.push(arm2Body);
-    arm2Body.color =  "0x00ffff";
+    sarmBody.addShape(sarmShape);
+    sarmBody.color =  "0x0000ff";
+    sarmBody.name = "sarmBody";
+    world.addBody(sarmBody);
+
+    bodies[sarmBody.name] = sarmBody; 
+
     
     // Constrain it to the world
-    var c = new p2.RevoluteConstraint(arm2Body, dummyBody1, {
-        worldPivot: [-L*2, 0],
+    var c = new p2.RevoluteConstraint(sarmBody, dummyBody1, {
+        worldPivot: origin,
         collideConnected: false
     });
     world.addConstraint(c);
@@ -322,8 +306,9 @@ function reset_double_pendulum()
 
 function reset_single_pendulum()
 {
-    arm2Body.position =  [-(L*3),0];
-    arm2Body.angle = 0;
+    world.removeBody(sarmBody);
+    world.removeBody(dummyBody1);    
+    init_single_pendulum();
 }
 
 window.onkeydown = function(event){
