@@ -39,6 +39,11 @@ var R = 0.7,
 var L1 = L/2;
 var L2 = L/3;
 
+var DEGREES_OF_VARIATION = 4;
+
+var ANGULAR_DAMPING = 0.02; // (Between 1.0 and 0.0)
+var LINEAR_DAMPING = 0.02; // (Between 1.0 and 0.0)
+    
 var origin = [0,0];
 var SL = L*2;
 var TL = 1.0;
@@ -47,13 +52,14 @@ var r2 = 4;
 var L1 = SL*TL*r1/(r1+r2); // First arm
 var L2 = SL*TL*r2/(r1+r2); // Second arm
 
-var initial_angle_deg = 80, // raise angle, ccw from x axis, in degrees.
+var initial_angle_deg = 70, // raise angle, ccw from x axis, in degrees.
     initial_angle = (initial_angle_deg/360) * 2.0 * Math.PI;
 
 var hang_angle_deg = 270,
     hang_angle = (hang_angle_deg/360) * 2.0 * Math.PI;    
 
 var single_arm_pos = [origin[0] + Math.cos(initial_angle)*SL/2 , origin[1] + Math.sin(initial_angle)*SL/2 ];
+
 var d1_arm_pos = [origin[0] + Math.cos(initial_angle)*L1/2 , origin[1] + Math.sin(initial_angle)*L1/2 ];
 var d2_arm_pos = [d1_arm_pos[0] + Math.cos(initial_angle)*L1/2 +  Math.cos(hang_angle)*(L2)/2,
 		  d1_arm_pos[1] + Math.sin(initial_angle)*L1/2 +  Math.sin(hang_angle)*(L2)/2];
@@ -277,6 +283,14 @@ function init_double_pendulum()
         world.step(1/60);
     armBody.angle = initial_angle;
     secondArmBody.angle = hang_angle;
+
+    secondArmBody.angularDamping = ANGULAR_DAMPING;
+    secondArmBody.damping = LINEAR_DAMPING;        
+
+    armBody.angularDamping = ANGULAR_DAMPING;
+    armBody.damping = LINEAR_DAMPING;        
+
+    
 }
 
 function init_single_pendulum()
@@ -310,15 +324,12 @@ function init_single_pendulum()
     });
     world.addConstraint(c);
 
-    armBody.angle = initial_angle;
-    armBody.velocity = [0,0];
-    armBody.angularVelocity = 0;
+    sarmBody.angle = initial_angle;
+    sarmBody.velocity = [0,0];
+    sarmBody.angularVelocity = 0;
+    sarmBody.angularDamping = ANGULAR_DAMPING;
+    sarmBody.damping = LINEAR_DAMPING;        
     
-    secondArmBody.angle = hang_angle;
-    secondArmBody.velocity = [0,0];
-    secondArmBody.angularVelocity = 0;
-    
-    secondArmBody.color = random_color();
 }
 
 function reset_double_pendulum()
@@ -328,15 +339,19 @@ function reset_double_pendulum()
     world.removeBody(dummyBody2);    
     init_double_pendulum();
 
-    var random_degree = Math.random() * 2.0;
+    var random_degree = Math.random() * DEGREES_OF_VARIATION;
     var random_rads = (random_degree / 360) * 2.0 * Math.PI;
     armBody.angle = initial_angle+random_rads;
     armBody.velocity = [0,0];
     armBody.angularVelocity = 0;
+    armBody.angularDamping = ANGULAR_DAMPING;
+    armBody.damping = LINEAR_DAMPING;        
     
     secondArmBody.angle = hang_angle;
     secondArmBody.velocity = [0,0];
     secondArmBody.angularVelocity = 0;
+    secondArmBody.angularDamping = ANGULAR_DAMPING;
+    secondArmBody.damping = LINEAR_DAMPING;            
     
     secondArmBody.color = random_color();
 }
