@@ -1,45 +1,250 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>Piston demo - p2.js physics engine</title>
+<html lang="en">
+  <head>
+    <title>Double Pendulum demo - p2.js physics engine</title>
     <script src="../build/p2.js"></script>
     <script src="../build/p2.renderer.js"></script>
     <link href="css/demo.css" rel="stylesheet"/>
-    <meta name="description" content="Shows how to build a small piston mechanism.">
+    <meta name="description" content="Shows Chaotic Nature of Double Pendulum Compared to Single Pendulum.">
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, user-scalable=no, minimum-scale=1.0, maximum-scale=1.0">
-</head>
-<body>
+  </head>
+  <body>
+    <section id="visualsection" style="{border: red;}">
+    </section>
     <script>
 
-var R = 0.7,
-L = R * 3 / 2;
+/* TODO:
 
- var buttons = {
-        space : false,
-        left :  false,
-        right : false,
- }
+-- make the arm short enough to pass through the pivot to make it physically realizable
+-- draw borders around the rectangles
+-- detect ticks
+-- draw table 
+-- add a button to start game
+-- change to simply raising both systems
+
+This stuff is harder:
+-- Stop game when the trace is new and report "Congratulations, you found new trace never found before!" 
+"It took X seconds".
+-- need a way to store the traces
+
+*/ 
+    var w, h, canvas, ctx, circleBody;
+var bodies = [];
+var bgraphs = [];
+
+var renderer, stage, container, graphics, zoom,boxShape, boxBody, planeBody, planeShape;
+var R = 0.7,
+    L = R * 3 / 2;
+var L1 = L/2;
+var L2 = L/3;
+
+var buttons = {
+    space : false,
+    left :  false,
+    right : false,
+}
 var arm2Body;
 var armBody;
 var secondArmBody;
-var dummyBody;
+
 var world;
+var dummyBody1;
+var dummyBody2;
 
-    function init_double_pendulum() 
-    {
-    // Create arm
-    var armShape =  new p2.Box({ width: L, height: 0.1*L });
-	armBody = new p2.Body({
-        mass:1,
-	position: [L*(5/2),0]
+var initAngVel = 5;
+
+function random_color() {
+    return '0x'+Math.floor(Math.random()*16777215).toString(16);
+}
+
+init();
+animate();
+
+function init_world() {
+    world = new p2.World({
+        gravity : [0,-1]
     });
-    armBody.addShape(armShape);
-    world.addBody(armBody);
 
+    world.solver.iterations = 30;
+    world.solver.tolerance = 0.01;
+
+    // Create static dummy body that we can constrain other bodies to
+
+    init_double_pendulum();
+    init_single_pendulum();
+    var line = new p2.Line(L*4);
+    var lbody = new p2.Body({
+        position : [0,0],
+    });
+    lbody.addShape(line);
+    world.addBody(lbody);
+    lbody.color = "0xfff000";
+    bodies.push(lbody);
+    
+    // Create ground
+    var planeShape = new p2.Plane();
+    var plane = new p2.Body({
+        position : [0,-5],
+    });
+    plane.addShape(planeShape);
+    world.addBody(plane);
+    bodies.push(plane);
+
+}
+
+function init(){
+
+    init_world();
+    // Pixi.js zoom level
+    zoom = 150;
+
+    // Initialize the stage
+    renderer =  PIXI.autoDetectRenderer(1400, 800),
+    stage = new PIXI.Stage(0xFFFFFF);
+
+    // We use a container inside the stage for all our content
+    // This enables us to zoom and translate the content
+    container =     new PIXI.DisplayObjectContainer(),
+    
+    stage.addChild(container);
+
+    // Add the canvas to the DOM
+    var section = document.getElementById("visualsection");
+    section.appendChild(renderer.view);
+
+    // Add transform to the container
+    container.position.x =  renderer.width/2; // center at origin
+    container.position.y =  renderer.height/2;
+    container.scale.x =  zoom;  // zoom in
+    container.scale.y = -zoom; // Note: we flip the y axis to make "up" the physics "up"
+
+
+    // Draw the box.
+    graphics = new PIXI.Graphics();
+
+    add_bodies(container,bodies);
+    // Add the box to our container
+    container.addChild(graphics);
+}
+
+function add_bodies(container,bodies,graphics) {
+    bodies.forEach((b) => {
+        // Draw the box.
+        var g = new PIXI.Graphics();
+	bgraphs.push(g);
+	g.beginFill(b.color);
+	var w = b.shapes[0].width;
+	var h = b.shapes[0].height;
+	g.drawRect(-w/2, -h/2, w, h);
+	container.addChild(g);
+    });
+}
+
+function normalizeAngle(angle){
+                        angle = angle % (2*Math.PI);
+                        if(angle < 0){
+                            angle += (2*Math.PI);
+                        }
+                        return angle;
+                    }
+function drawBodies(graphics,bs,gs) {
+    for(var i = 0; i < bs.length; i++) {
+	var g = gs[i];
+	var b = bs[i];
+	// Transfer positions of the physics objects to Pixi.js
+	g.position.x = b.position[0];
+	g.position.y = b.position[1];
+	g.rotation =   b.angle;
+
+	if (b.name == "secondArmBody") {
+	    graphics.beginFill(b.color);
+	    var theta = normalizeAngle(b.angle);
+	    theta = normalizeAngle(theta);
+	    var len = L/2;
+	    var pos = [b.position[0]+len*Math.cos(theta),b.position[1]+len*Math.sin(theta)];
+	    graphics.drawRect(pos[0], pos[1], 0.03, 0.03);	    
+	}
+    }
+}
+
+
+var lastCallTime = time();
+
+// Animation loop
+function animate(t){
+    t = t || 0;
+    requestAnimationFrame(animate);
+
+    // Move physics bodies forward in time
+    world.step(1/60);
+
+    drawBodies(graphics,bodies,bgraphs);
+    // Render scene
+    renderer.render(stage);
+}
+
+// // Animation loop
+// function animate(t){
+//     t = t || 0;
+//     requestAnimationFrame(animate);
+
+//     circleBody.velocity[0] = 2*Math.cos(1 * t / 1000 + 3/2*Math.PI);
+//     circleBody.velocity[1] = 2*Math.sin(1 * t / 1000 + 3/2*Math.PI);
+
+//     // Compute time since last time we called the .step() method
+//     var timeSinceLastCall = time()-lastCallTime;
+//     lastCallTime = time();
+
+//     // Fixed time step to use for physics. We use a huge timestep of 0.5 to see what's going on.
+//     // NOTE: For most games, fixedTimeStep=1/60 is a good choice.
+//     var fixedTimeStep=0.5; // seconds
+
+//     // Max number of fixed physics timesteps to do in one .step(). We choose a large number to see what is going on.
+//     // NOTE: for most games, maxSubSteps=3 is probably a good choice.
+//     var maxSubSteps=10;
+
+//     // Now step the world.
+//     // This will do integration at a fixed time step, but compute interpolated positions
+//     // which are stored in body.interpolatedPosition.
+//     world.step(fixedTimeStep,timeSinceLastCall,maxSubSteps);
+
+//     // Render both interpolated and fixed-step positions
+//     render(ctx,circleBody);
+// }
+
+// Get current time, in seconds.
+function time(){
+    return new Date().getTime() / 1000;
+}
+
+
+function init_double_pendulum() 
+{
+    // Create arm
+
+    // Create static dummy body that we can constrain other bodies to
+    dummyBody2 = new p2.Body({
+        mass: 0,
+    });
+    world.addBody(dummyBody2);
+    
+    var armShape =  new p2.Box({ width: L, height: 0.1*L });
+    armBody = new p2.Body({
+        mass:1,
+	position: [L*(5/2),0],
+    });
+    armBody.addShape(armShape,[L/2,0]);
+    armBody.velocity = [0,0];
+    armBody.angularVelocity = initAngVel;    
+    armBody.angle = 0;    
+    world.addBody(armBody);
+    armBody.color =  "0xffff00";
+
+    bodies.push(armBody);
 
     // Constrain it to the world
-    var c = new p2.RevoluteConstraint(armBody, dummyBody, {
+    var c = new p2.RevoluteConstraint(armBody, dummyBody2, {
         worldPivot: [L*2, 0],
         collideConnected: false
     });
@@ -50,49 +255,69 @@ var world;
     var secondArmShape = new p2.Box({ width: L, height: 0.1*L });
     secondArmBody = new p2.Body({
         mass: 1,
-	position: [L*3,-L/2],
-	angle: Math.PI/2
+	position: [L*3.5,0],
+	angle: 0,
     });
+    secondArmBody.angle = 0;
+    secondArmBody.velocity = [0,0];
+    secondArmBody.angularVelocity = -initAngVel;    
+    
     secondArmBody.addShape(secondArmShape);
+    secondArmBody.name = "secondArmBody";
+    secondArmBody.color = "0xf00f00";
     world.addBody(secondArmBody);
+    bodies.push(secondArmBody);
 
     // Connect secondArm to arm
-    var c3 = new p2.RevoluteConstraint(secondArmBody, armBody, {
+    var c3 = new p2.RevoluteConstraint( armBody,secondArmBody, {
         localPivotA: [L/2,0],
-        localPivotB: [L/2,0],
+        localPivotB: [-L/2,0],
         collideConnected: false
     });
-	world.addConstraint(c3);
+    world.addConstraint(c3);
 
-	reset_double_pendulum();
-    }
+    reset_double_pendulum();
+}
 
-     function init_single_pendulum()
-    {
-        // Create arm
-        var arm2Shape =  new p2.Box({ width: L*2, height: 0.1*L });
-        arm2Body = new p2.Body({
-            mass:1,
-	    position: [-(L*3),0]
-        });
-        arm2Body.addShape(arm2Shape);
-        world.addBody(arm2Body);
-
-
-        // Constrain it to the world
-        var c = new p2.RevoluteConstraint(arm2Body, dummyBody, {
-            worldPivot: [-L*2, 0],
-            collideConnected: false
-        });
-	world.addConstraint(c);
-    }
+function init_single_pendulum()
+{
+    dummyBody1 = new p2.Body({
+        mass: 0,
+    });
+    world.addBody(dummyBody1);
+    
+    // Create arm
+    var arm2Shape =  new p2.Box({ width: L*2, height: 0.1*L });
+    arm2Body = new p2.Body({
+        mass:1,
+	position: [-(L*3),0],
+    });
+    arm2Body.addShape(arm2Shape);
+    world.addBody(arm2Body);
+    bodies.push(arm2Body);
+    arm2Body.color =  "0x00ffff";
+    
+    // Constrain it to the world
+    var c = new p2.RevoluteConstraint(arm2Body, dummyBody1, {
+        worldPivot: [-L*2, 0],
+        collideConnected: false
+    });
+    world.addConstraint(c);
+}
 
 function reset_double_pendulum()
 {
+    var random = Math.random() * 0.4;
     armBody.position= [L*(5/2),0];
     armBody.angle = 0;
-    secondArmBody.position = [L*3,-L/2];
-    secondArmBody.angle = 0;
+    armBody.velocity = [0,0];
+    armBody.angularVelocity = initAngVel;
+    
+    secondArmBody.position = [L*3.5,0];
+    secondArmBody.angle = 0+random;
+    secondArmBody.velocity = [0,0];
+    secondArmBody.angularVelocity = -initAngVel;
+    secondArmBody.color = random_color();
 }
 
 function reset_single_pendulum()
@@ -101,79 +326,40 @@ function reset_single_pendulum()
     arm2Body.angle = 0;
 }
 
-// Create demo application
-var app = new p2.WebGLRenderer(function(){
-
-    world = new p2.World({
-        gravity : [0,-1]
-    });
-
-    this.setWorld(world);
-
-    world.solver.iterations = 30;
-    world.solver.tolerance = 0.01;
-
-    // Create static dummy body that we can constrain other bodies to
-    dummyBody = new p2.Body({
-        mass: 0,
-    });
-    world.addBody(dummyBody);
-
-
-    init_double_pendulum();
-    init_single_pendulum();
-    var line = new p2.Line(L*4);
-    var lbody = new p2.Body({
-        position : [0,0],
-    });
-    lbody.addShape(line);
-    world.addBody(lbody);
-    
-    
-    // Create ground
-    var planeShape = new p2.Plane();
-    var plane = new p2.Body({
-        position : [0,-5],
-    });
-    plane.addShape(planeShape);
-    world.addBody(plane);
-
-});
-
- window.onkeydown = function(event){
-        switch(event.keyCode){
-          case 38: // up
-          case 32: // space
-            if(!buttons.space){
-		reset_single_pendulum();
-		reset_double_pendulum();
-              buttons.space = true;
-            }
-            break;
-          case 39: // right
-            buttons.right = true;
-            break;
-          case 37: // left
-            buttons.left = true;
-            break;
+window.onkeydown = function(event){
+    switch(event.keyCode){
+    case 38: // up
+    case 32: // space
+        if(!buttons.space){
+	    reset_single_pendulum();
+	    reset_double_pendulum();
+	    buttons.space = true;
         }
-      }
+        break;
+    case 39: // right
+        buttons.right = true;
+        break;
+    case 37: // left
+        buttons.left = true;
+        break;
+    }
+}
 
-      window.onkeyup = function(event){
-        switch(event.keyCode){
-          case 38: // up
-          case 32: // space
-            buttons.space = false;
-            break;
-          case 39: // right
-            buttons.right = false;
-            break;
-          case 37: // left
-            buttons.left = false;
-            break;
-        }
-      }
-
+window.onkeyup = function(event){
+    switch(event.keyCode){
+    case 38: // up
+    case 32: // space
+        buttons.space = false;
+        break;
+    case 39: // right
+        buttons.right = false;
+        break;
+    case 37: // left
+        buttons.left = false;
+        break;
+    }
+}
     </script>
-</body>
-</html>
+
+  </body>
+    </html>
