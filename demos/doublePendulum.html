@@ -75,13 +75,21 @@ This stuff is harder:
 var bodies = {};
 var bgraphs = {};
 
+// These time series will be used to compute the distance
+var current_time_series = [];
+var last_time_series = [];
+
 var renderer, stage, container, graphics, zoom,boxShape, boxBody, planeBody, planeShape;
-var R = 0.7,
-    L = R * 3 / 2;
+
+// I THINK P2.js uses the KMS system of units.
+var L = 1.0; // Let's assume a 1 meter length!!!
 var L1 = L/2;
 var L2 = L/3;
 
 var DEGREES_OF_VARIATION = 4;
+
+// This is meters!
+var DIVERGENCE_DEFINITION = 0.4; 
 
 var ANGULAR_DAMPING = 0.02; // (Between 1.0 and 0.0)
 var LINEAR_DAMPING = 0.02; // (Between 1.0 and 0.0)
@@ -110,6 +118,9 @@ var d2_arm_pos = [d1_arm_pos[0] + Math.cos(initial_angle)*L1/2 +  Math.cos(hang_
                         SINGLE =  Math.pow(2,1),
                         DOUBLE = Math.pow(2,2)
 
+var GRAVITY = -9.82;
+// This is used to slow the system down for testing.
+var GRAVITY_SLOWDOWN = 0.1;
 var buttons = {
     space : false,
     left :  false,
@@ -128,8 +139,14 @@ var initAngVel = 5;
 
 
 function start_trial() {
+    last_time_series = current_time_series;
+    current_time_series = [];
     reset_single_pendulum();
     reset_double_pendulum();
+    firstTime = null;
+    lastReportedTime = null;
+    ticks = null;
+    lastReportTime = null;
 }
 
 
@@ -143,15 +160,39 @@ function gen_row(tick,time,s,d,closest) {
 	"</tr>";
 }
 
+function debug_time_series_distance(t1,t2) {
+    for(var i = 0; i < Math.min(t1.length,t2.length); i++) {
+	var a = t1[i][3];
+	var b = t2[i][3];
+	console.log("i = a, b : "+ i + " = " + a+" , " + b);
+	console.log(distance(a,b));	
+    }
+}
+// This could be replaced with a binary search
+function get_value_from_time_series(ts,t) {
+    for(var i = 0; i < ts.length; i++) {
+	var entry = ts[i];
+	if (entry[0] >= t) {
+	    return entry;
+	}
+    }
+    return null;
+}
+
 function tick(ticks,time) {
     add_row(ticks,time);
+}
+function distance(v1,v2) {
+    var dx = v1[0]-v2[0];
+    var dy = v1[1]-v2[1];
+    return Math.sqrt(dx*dx + dy*dy);
 }
 function add_row(ticks,time) {
     var table = document.getElementById("trialtable");
     // Note adding in Math.PI/2 here creates creates a system of positive degrees to the right, negative to the left, probably what we want...
     var s = (bodies["sarmBody"].angle + Math.PI/2) * 180 / Math.PI;
     var d = ( Math.PI/2 + Math.atan2(bodies["secondArmBody"].position[1],bodies["secondArmBody"].position[0]))*180/Math.PI;
-    var dist = 4;
+
     var row = table.insertRow(1);
     var cell1 = row.insertCell(0);
     var cell2 = row.insertCell(1);
@@ -161,8 +202,32 @@ function add_row(ticks,time) {
     cell1.innerHTML = ""+ticks;
     cell2.innerHTML = ""+time.toFixed(2) + " s";    
     cell3.innerHTML = ""+s.toFixed(2) +  " degrees";
-    cell4.innerHTML = ""+d.toFixed(2) +  " degrees";    
-    cell5.innerHTML = ""+dist;
+    cell4.innerHTML = ""+d.toFixed(2) +  " degrees";
+
+    var dist_string;
+    var dist;
+    var entry
+    if (last_time_series && 
+	(entry = get_value_from_time_series(last_time_series,time))) {
+	var len = current_time_series.length;
+	var b = bodies["secondArmBody"];
+	var cur = find_tip_of_second_arm(b);
+	// NOTE: I should be able to use the vec2 library for this, but can't figure out how to include it!
+        dist = distance(cur,entry[3]).toFixed(2);
+//	var g = new PIXI.Graphics();
+	graphics.beginFill("0x0000ff");
+	graphics.lineStyle(0.01,"0x00ffff");
+	graphics.moveTo(cur[0],cur[1]);
+	graphics.lineTo(entry[3][0],entry[3][1]);
+	dist_string = "" + distance(bodies["secondArmBody"].position,entry[3]).toFixed(2) + "m";
+    } else {
+	dist_string = "NA";
+    }
+    
+    cell5.innerHTML = ""+dist_string;
+    if (dist >= DIVERGENCE_DEFINITION) {
+	debugger;
+    }
 }
 
 init();
@@ -171,7 +236,7 @@ requestAnimationFrame(animate);
 
 function init_world() {
     world = new p2.World({
-        gravity : [0,-1]
+        gravity : [0,GRAVITY*GRAVITY_SLOWDOWN]
     });
 
     world.solver.iterations = 30;
@@ -242,6 +307,13 @@ function normalizeAngle(angle){
                         return angle;
 }
 
+function find_tip_of_second_arm(b) {
+    var theta = normalizeAngle(b.angle);
+    theta = normalizeAngle(theta);
+    var len = L2/2;
+    var pos = [b.position[0]+len*Math.cos(theta),b.position[1]+len*Math.sin(theta)];
+    return pos;
+}
 function drawBodies(graphics,bs,gs) {
     for (var key in bodies) {
 	var b = bodies[key];
@@ -253,17 +325,18 @@ function drawBodies(graphics,bs,gs) {
 
 	if (b.name == "secondArmBody") {
 	    graphics.beginFill(b.color);
-	    var theta = normalizeAngle(b.angle);
+/*	    var theta = normalizeAngle(b.angle);
 	    theta = normalizeAngle(theta);
 	    var len = L2/2;
 	    var pos = [b.position[0]+len*Math.cos(theta),b.position[1]+len*Math.sin(theta)];
+*/
+	    pos = find_tip_of_second_arm(b);
 	    graphics.drawRect(pos[0], pos[1], 0.03, 0.03);	    
 	}
     }
 }
 
 // all times in milliseconds, I guess.
-var lastCallTime = time() / 1000;
 var maxSubSteps = 5; // Max physics ticks per render frame
 var fixedDeltaTime = 1 / 60; // Physics "tick" delta time
 var lastReportedTime;
@@ -276,9 +349,17 @@ function animate(time){
     lastTime = lastTime || time;
     lastReportedTime = lastReportedTime || 0;
     firstTime = firstTime || time;
-    
-    requestAnimationFrame(animate);
-    // Get the elapsed time since last frame, in seconds
+
+    // Now let us record the time series stuff....
+
+    var s = (bodies["sarmBody"].angle + Math.PI/2) * 180 / Math.PI;
+    var d = ( Math.PI/2 + Math.atan2(bodies["secondArmBody"].position[1],bodies["secondArmBody"].position[0]))*180/Math.PI;
+
+    var b = bodies["secondArmBody"];
+    var pos = find_tip_of_second_arm(b);
+    current_time_series.push([(lastTime-firstTime)/1000,s,d,[pos[0],pos[1]]]);
+
+    // Now compute the next step
     
     var deltaTime = lastTime ? (time - lastTime) / 1000 : 0;
     lastTime = time;
@@ -298,6 +379,8 @@ function animate(time){
     drawBodies(graphics,bodies,bgraphs);
     // Render scene
     renderer.render(stage);
+    
+    requestAnimationFrame(animate);    
 }
 
 // Get current time, in seconds.
@@ -319,7 +402,7 @@ function init_double_pendulum()
     var armShape =  new p2.Box({ width: L1, height: 0.1*L });
     armShape.collisionGroup = DOUBLE;            
     armBody = new p2.Body({
-        mass:1,
+        mass: 2,
 	position: [L1/2,0],
     });
     armBody.addShape(armShape,d1_arm_pos,initial_angle_deg);
@@ -347,7 +430,7 @@ function init_double_pendulum()
     var secondArmShape = new p2.Box({ width: L2, height: 0.1*L });
     armShape.collisionGroup = DOUBLE;            
     secondArmBody = new p2.Body({
-        mass: 1,
+        mass: 2,
 	position: d2_arm_pos,
 	angle: 0,
     });
@@ -404,7 +487,7 @@ function init_single_pendulum()
     var sarmShape =  new p2.Box({ width: SL, height: 0.1*L });
     sarmShape.collisionGroup = SINGLE;        
     sarmBody = new p2.Body({
-        mass:1,
+        mass:4,
 	position: single_arm_pos,
     });
     sarmBody.addShape(sarmShape);
@@ -468,8 +551,7 @@ window.onkeydown = function(event){
     case 38: // up
     case 32: // space
         if(!buttons.space){
-	    reset_single_pendulum();
-	    reset_double_pendulum();
+	    start_trial();
 	    buttons.space = true;
         }
         break;
