@@ -12,6 +12,48 @@
   <body>
     <section id="visualsection" style="{border: red;}">
     </section>
+    <section id="textsection" style="{border: red;}">
+    <button onclick="start_trial()">Start!</button>
+    <button onclick="tick()">Tick!</button>
+    <style>
+#table-wrapper {
+  position:relative;
+}
+#table-scroll {
+  height:150px;
+  overflow:auto;  
+  margin-top:20px;
+}
+#table-wrapper table {
+  width:100%;
+
+}
+#table-wrapper table * {
+  color:black;
+}
+#table-wrapper table thead th .text {
+  position:absolute;   
+  top:-20px;
+  z-index:2;
+  height:20px;
+  width:35%;
+  border:1px solid red;
+}    
+    </style>
+<div id="table-wrapper">
+  <div id="table-scroll">
+    <table id="trialtable">
+     <tr>
+    <th>Tick</th>
+    <th>Time</th>
+    <th>Single</th>
+    <th>Double</th>
+    <th>Distance To Closest Trace</th>    
+    </tr>
+    </table>
+  </div>
+</div>    
+    </section>
     <script>
 
 /* TODO:
@@ -84,12 +126,48 @@ var dummyBody2;
 
 var initAngVel = 5;
 
+
+function start_trial() {
+    reset_single_pendulum();
+    reset_double_pendulum();
+}
+
+
 function random_color() {
     return '0x'+Math.floor(Math.random()*16777215).toString(16);
 }
 
+function gen_row(tick,time,s,d,closest) {
+    return 
+    "<tr>" +
+	"</tr>";
+}
+
+function tick(ticks,time) {
+    add_row(ticks,time);
+}
+function add_row(ticks,time) {
+    var table = document.getElementById("trialtable");
+    // Note adding in Math.PI/2 here creates creates a system of positive degrees to the right, negative to the left, probably what we want...
+    var s = (bodies["sarmBody"].angle + Math.PI/2) * 180 / Math.PI;
+    var d = ( Math.PI/2 + Math.atan2(bodies["secondArmBody"].position[1],bodies["secondArmBody"].position[0]))*180/Math.PI;
+    var dist = 4;
+    var row = table.insertRow(1);
+    var cell1 = row.insertCell(0);
+    var cell2 = row.insertCell(1);
+    var cell3 = row.insertCell(2);
+    var cell4 = row.insertCell(3);
+    var cell5 = row.insertCell(4);
+    cell1.innerHTML = ""+ticks;
+    cell2.innerHTML = ""+time.toFixed(2) + " s";    
+    cell3.innerHTML = ""+s.toFixed(2) +  " degrees";
+    cell4.innerHTML = ""+d.toFixed(2) +  " degrees";    
+    cell5.innerHTML = ""+dist;
+}
+
 init();
-animate();
+
+requestAnimationFrame(animate);
 
 function init_world() {
     world = new p2.World({
@@ -184,16 +262,38 @@ function drawBodies(graphics,bs,gs) {
     }
 }
 
-
-var lastCallTime = time();
-
+// all times in milliseconds, I guess.
+var lastCallTime = time() / 1000;
+var maxSubSteps = 5; // Max physics ticks per render frame
+var fixedDeltaTime = 1 / 60; // Physics "tick" delta time
+var lastReportedTime;
+var lastTime;
+var firstTime;
+var ticks = 0;
 // Animation loop
-function animate(t){
-    t = t || 0;
+function animate(time){
+    time = time || 0;
+    lastTime = lastTime || time;
+    lastReportedTime = lastReportedTime || 0;
+    firstTime = firstTime || time;
+    
     requestAnimationFrame(animate);
+    // Get the elapsed time since last frame, in seconds
+    
+    var deltaTime = lastTime ? (time - lastTime) / 1000 : 0;
+    lastTime = time;
 
+    if ((lastTime - lastReportedTime) >= 1000) {
+	tick(ticks,(lastTime-firstTime)/1000);
+	ticks++;
+	lastReportedTime = lastTime;
+    }
+    // Make sure the time delta is not too big (can happen if user switches browser tab)
+    deltaTime = Math.min(1 / 10, deltaTime);
+
+    fixedDeltaTime = 1/60;
     // Move physics bodies forward in time
-    world.step(1/60);
+    world.step(fixedDeltaTime, deltaTime, maxSubSteps);
 
     drawBodies(graphics,bodies,bgraphs);
     // Render scene
