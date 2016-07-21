@@ -15,7 +15,12 @@
 var interval;
 
 var N = 20,  // Number of circles in each rope
-    r = 0.1; // Circle radius
+    r = 0.1, // Circle radius
+    sensorSize = 0.4;
+
+var sensorBody;
+
+var kickedBodies = [];
 
 // Create demo application
 var app = new p2.WebGLRenderer({
@@ -37,6 +42,7 @@ var app = new p2.WebGLRenderer({
 	    var capstan_r = 0.3;
 	  var c0 = new p2.Body({
                 mass: 0,
+                damping: 0,
               position: [ x , y],
 	      
             });
@@ -63,6 +69,7 @@ var app = new p2.WebGLRenderer({
 	    var y = ring_radius*Math.cos(theta);
             var p = new p2.Body({
                 mass:  1,
+                damping: 0,
                 position:  [ x , y],
             });
             p.addShape(new p2.Circle({ radius: r }));
@@ -82,6 +89,17 @@ var app = new p2.WebGLRenderer({
             lastBody = p;
 	}
 
+          sensorShape = new p2.Box({ width: sensorSize, height: sensorSize });
+          sensorShape.sensor = true;
+          var pos = [0,1.4];
+          sensorBody = new p2.Body({
+            position:pos
+          });
+          sensorBody.damping = 0;
+          sensorBody.addShape(sensorShape);
+          sensorBody.active = false;
+          world.addBody(sensorBody);
+
 //	var dist = Math.abs(bodies[0].position[1]-bodies[N-1].position[1]);
 	var dist = p2.vec2.distance(bodies[0].position,bodies[N-1].position);
         var constraint = new p2.DistanceConstraint(bodies[0],bodies[N-1], {
@@ -89,7 +107,7 @@ var app = new p2.WebGLRenderer({
         });
 	world.addConstraint(constraint);
 
-	var speed_factor = 50.0;
+	var speed_factor = 2.0;
 	var scale_factor = 1.3;
 
 	function each_follow_neighbor(speed_factor) {
@@ -127,7 +145,7 @@ var app = new p2.WebGLRenderer({
 	var cnt = 0;
         interval = setInterval(function(){
       //      var numIslands = world.islandManager.islands.length;
-            console.log("Hello World!"+cnt++);
+     //      console.log("Hello World!"+cnt++);
 	//    	scale_each(scale_factor);
 	        },1000);
 
@@ -137,7 +155,36 @@ var app = new p2.WebGLRenderer({
                 position : [0,-5],
             });
             plane.addShape(planeShape);
-            world.addBody(plane);
+            world.addBody(plane); 
+
+        world.on("beginContact",function(event){
+	    //            console.log("begin");
+	    var s;
+	    var b;
+	    if ((event.bodyA != sensorBody) && (event.bodyB == sensorBody)) {
+		s = event.bodyB;
+		b = event.bodyA;
+	    }
+	    if ((event.bodyA == sensorBody) && (event.bodyB != sensorBody)) {
+		s = event.bodyA;
+		b = event.bodyB;
+	    }
+	    if (b) {
+		console.log("YES!");
+		kickedBodies.push(b);
+	    }
+        });
+        world.on("endContact",function(event){
+//              console.log("contact");     
+        });
+	world.on("postStep",function(evt){
+	    for(var i = 0; i < kickedBodies.length; i++) {
+		var b = kickedBodies[i];
+		b.force[0] += -200;
+		console.log("Kicked!");     
+	    }
+	    kickedBodies = [];
+        });
 
     },
 
